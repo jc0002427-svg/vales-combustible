@@ -12,6 +12,7 @@ st.write("Sube fotos de los vales y descarga el Excel automáticamente")
 
 API_KEY = "helloworld"
 
+# -------- OCR -------- #
 def leer_texto(img):
     url = "https://api.ocr.space/parse/image"
     response = requests.post(
@@ -25,37 +26,51 @@ def leer_texto(img):
     except:
         return ""
 
+# -------- EXTRACCIÓN -------- #
 def extraer_datos(texto):
     texto = texto.upper().replace("\n", " ")
 
-    vale = re.search(r'(NO|N°|N0)[\s.:]*(\d+)', texto)
-    fecha = re.search(r'(\d{2}[-/]\d{2}[-/]\d{4})', texto)
+    # Vale
+    vale_match = re.search(r'(NO|N°|N0)[\s.:]*(\d{3,})', texto)
+    vale = vale_match.group(2) if vale_match else ""
 
+    # Fecha
+    fecha_match = re.search(r'(\d{2}[-/]\d{2}[-/]\d{4})', texto)
+    fecha = fecha_match.group(1) if fecha_match else ""
+
+    # Valor (elige el mayor)
     valores = re.findall(r'\d{2,3}[.,]?\d{3}', texto)
     valor = ""
     if valores:
         valor = max(valores, key=lambda x: int(x.replace(".", "").replace(",", "")))
 
+    # Combustible
     if "ACPM" in texto:
         combustible = "ACPM (Diesel)"
     else:
         combustible = "Gasolina Motor"
 
-    placa_match = re.search(r'[A-Z]{3}\s?\d{3}', texto)
-    placa = placa_match.group(0) if placa_match else "MAQUINARIA"
+    # Placa mejorada
+    placa_match = re.findall(r'[A-Z]{3}\s?\d{3}', texto)
 
-    if placa == "MAQUINARIA":
-        destino = "Maquinaria"
-        cantidad = 3
-        obs = "Maquinaria GUADAÑA"
-    else:
+    if placa_match:
+        placa = placa_match[0].replace(" ", "")
         destino = "Vehículo"
         cantidad = 1
         obs = ""
+    else:
+        placa = "MAQUINARIA"
+        destino = "Maquinaria"
+        cantidad = 3
+        obs = "Maquinaria GUADAÑA"
+
+    # Filtro (evita filas vacías)
+    if not vale and not valor:
+        return None
 
     return {
-        "N° Vale": vale.group(2) if vale else "",
-        "Fecha": fecha.group(1) if fecha else "",
+        "N° Vale": vale,
+        "Fecha": fecha,
         "Placa / Equipo": placa,
         "Tipo de Combustible": combustible,
         "Cantidad": cantidad,
@@ -64,6 +79,7 @@ def extraer_datos(texto):
         "Observaciones": obs
     }
 
+# -------- INTERFAZ -------- #
 uploaded_files = st.file_uploader(
     "📸 Sube los vales",
     type=["png", "jpg", "jpeg"],
@@ -81,17 +97,21 @@ if uploaded_files:
         buf.seek(0)
 
         texto = leer_texto(buf)
-        datos.append(extraer_datos(texto))
+
+        dato = extraer_datos(texto)
+        if dato:
+            datos.append(dato)
 
     df = pd.DataFrame(datos)
 
     if not df.empty:
-        df["Valor Total ($)"] = df["Valor Total ($)"].str.replace(".", "", regex=False)
+        df["Valor Total ($)"] = df["Valor Total ($)"].astype(str).str.replace(".", "", regex=False)
         df["Valor Total ($)"] = pd.to_numeric(df["Valor Total ($)"], errors='coerce')
 
     st.subheader("📊 Resultado")
     st.dataframe(df)
 
+    # Exportar a Excel
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
         df.to_excel(writer, index=False)
