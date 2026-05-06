@@ -15,12 +15,22 @@ API_KEY = "helloworld"
 # -------- OCR -------- #
 def leer_texto(img):
     url = "https://api.ocr.space/parse/image"
+    
     response = requests.post(
         url,
         files={"file": img},
-        data={"apikey": API_KEY, "language": "spa"}
+        data={
+            "apikey": API_KEY,
+            "language": "spa",
+            "OCREngine": 2
+        }
     )
+
     result = response.json()
+
+    if result.get("IsErroredOnProcessing"):
+        return ""
+
     try:
         return result["ParsedResults"][0]["ParsedText"]
     except:
@@ -50,7 +60,7 @@ def extraer_datos(texto):
     else:
         combustible = "Gasolina Motor"
 
-    # Placa mejorada
+    # Placa
     placa_match = re.findall(r'[A-Z]{3}\s?\d{3}', texto)
 
     if placa_match:
@@ -63,10 +73,6 @@ def extraer_datos(texto):
         destino = "Maquinaria"
         cantidad = 3
         obs = "Maquinaria GUADAÑA"
-
-    # Filtro (evita filas vacías)
-    if not vale and not valor:
-        return None
 
     return {
         "N° Vale": vale,
@@ -98,9 +104,11 @@ if uploaded_files:
 
         texto = leer_texto(buf)
 
-        dato = extraer_datos(texto)
-        if dato:
-            datos.append(dato)
+        # 🔍 MOSTRAR TEXTO DETECTADO (CLAVE)
+        st.subheader("🔎 Texto detectado")
+        st.text(texto)
+
+        datos.append(extraer_datos(texto))
 
     df = pd.DataFrame(datos)
 
@@ -111,7 +119,7 @@ if uploaded_files:
     st.subheader("📊 Resultado")
     st.dataframe(df)
 
-    # Exportar a Excel
+    # Exportar Excel
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
         df.to_excel(writer, index=False)
