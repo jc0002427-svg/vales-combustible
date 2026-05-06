@@ -3,7 +3,10 @@ from PIL import Image
 import pandas as pd
 import re
 import io
-import pytesseract
+import easyocr
+
+# Inicializar lector OCR
+reader = easyocr.Reader(['es'])
 
 st.set_page_config(page_title="Vales Combustible", layout="centered")
 
@@ -58,7 +61,11 @@ if uploaded_files:
 
     for file in uploaded_files:
         img = Image.open(file)
-        texto = pytesseract.image_to_string(img, lang='spa')
+
+        # OCR con easyocr
+        resultado = reader.readtext(img)
+        texto = " ".join([res[1] for res in resultado])
+
         datos.append(extraer_datos(texto))
 
     df = pd.DataFrame(datos)
