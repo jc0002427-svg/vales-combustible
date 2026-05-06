@@ -3,19 +3,31 @@ from PIL import Image
 import pandas as pd
 import re
 import io
-import easyocr
-import os
-
-# Evitar errores de librerías
-os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
-
-# Inicializar OCR (modo seguro para la nube)
-reader = easyocr.Reader(['es'], gpu=False)
+import requests
 
 st.set_page_config(page_title="Vales Combustible", layout="centered")
 
 st.title("⛽ Generador de Vales")
 st.write("Sube fotos de los vales y descarga el Excel automáticamente")
+
+# 🔑 API OCR gratuita (no necesita instalación)
+API_KEY = "helloworld"  # funciona gratis
+
+def leer_texto(img):
+    url = "https://api.ocr.space/parse/image"
+    
+    response = requests.post(
+        url,
+        files={"file": img},
+        data={"apikey": API_KEY, "language": "spa"}
+    )
+    
+    result = response.json()
+    
+    try:
+        return result["ParsedResults"][0]["ParsedText"]
+    except:
+        return ""
 
 def extraer_datos(texto):
     texto = texto.upper().replace("\n", " ")
@@ -66,10 +78,12 @@ if uploaded_files:
     for file in uploaded_files:
         img = Image.open(file)
 
-        # OCR con EasyOCR
-        resultado = reader.readtext(img)
-        texto = " ".join([res[1] for res in resultado])
+        # Convertir a bytes
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        buf.seek(0)
 
+        texto = leer_texto(buf)
         datos.append(extraer_datos(texto))
 
     df = pd.DataFrame(datos)
