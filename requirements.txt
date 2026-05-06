@@ -2,5 +2,4 @@ streamlit
 pillow
 pandas
 openpyxl
-easyocr
-torch
+
