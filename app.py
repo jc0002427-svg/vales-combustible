@@ -4,9 +4,13 @@ import pandas as pd
 import re
 import io
 import easyocr
+import os
 
-# Inicializar lector OCR
-reader = easyocr.Reader(['es'])
+# Evitar errores de librerías
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+
+# Inicializar OCR (modo seguro para la nube)
+reader = easyocr.Reader(['es'], gpu=False)
 
 st.set_page_config(page_title="Vales Combustible", layout="centered")
 
@@ -62,7 +66,7 @@ if uploaded_files:
     for file in uploaded_files:
         img = Image.open(file)
 
-        # OCR con easyocr
+        # OCR con EasyOCR
         resultado = reader.readtext(img)
         texto = " ".join([res[1] for res in resultado])
 
@@ -70,7 +74,9 @@ if uploaded_files:
 
     df = pd.DataFrame(datos)
 
-    df["Valor Total ($)"] = df["Valor Total ($)"].str.replace(".", "").astype(float)
+    if not df.empty:
+        df["Valor Total ($)"] = df["Valor Total ($)"].str.replace(".", "", regex=False)
+        df["Valor Total ($)"] = pd.to_numeric(df["Valor Total ($)"], errors='coerce')
 
     st.subheader("📊 Resultado")
     st.dataframe(df)
